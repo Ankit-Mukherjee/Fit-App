@@ -1,4 +1,5 @@
 services:
+  # Backend API service
   - type: web
     name: fit-app-backend
     env: python
@@ -7,3 +8,17 @@ services:
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
     healthCheckPath: /health
+
+  # Frontend static site
+  - type: static
+    name: fit-app-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: fit-app-backend
+          type: web
+          property: url
