@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import './App.css'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+// Use environment variable if available (build-time), otherwise try window config (runtime), fallback to localhost
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 
+                 (typeof window !== 'undefined' && window.APP_CONFIG?.API_BASE_URL) ||
+                 'http://localhost:8000'
 
 const genderOptions = [
   { label: 'Female', value: 'female' },

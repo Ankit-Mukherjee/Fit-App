@@ -8,6 +8,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Set API base URL from environment variable at runtime
+      window.APP_CONFIG = {
+        API_BASE_URL: 'https://fit-app-backend-5mv1.onrender.com'
+      };
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
