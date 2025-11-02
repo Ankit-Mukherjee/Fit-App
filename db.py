@@ -1,4 +1,4 @@
-from astrapy import DataAPIClient
+from astrapy.client import DataAPIClient
 from dotenv import load_dotenv
 import os
 
@@ -9,8 +9,10 @@ TOKEN = os.getenv("ASTRA_DB_APPLICATION_TOKEN")
 
 
 def get_db():
-    client = DataAPIClient(TOKEN)
-    db = client.get_database_by_api_endpoint(ENDPOINT)
+    if not TOKEN or not ENDPOINT:
+        raise ValueError("Missing required environment variables: ASTRA_DB_APPLICATION_TOKEN or ASTRA_DB_API_ENDPOINT")
+    client = DataAPIClient(token=TOKEN)
+    db = client.get_database_by_api_endpoint(api_endpoint=ENDPOINT)
     return db
 
 
