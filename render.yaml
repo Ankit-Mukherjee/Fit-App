@@ -10,12 +10,10 @@ services:
     healthCheckPath: /health
 
   # Frontend static site
-  - type: static
+  - type: static_site
     name: fit-app-frontend
-    env: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
-    autoDeploy: true
     envVars:
       - key: VITE_API_BASE_URL
         fromService:
