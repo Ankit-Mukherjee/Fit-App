@@ -5,7 +5,6 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
 from pydantic import BaseModel, Field
 
 from AI import get_macro_plan, get_workout_recommendation
@@ -142,40 +141,70 @@ def macro_plan_endpoint(request: MacroPlanRequest) -> Dict[str, str]:
 @app.post("/workout-advice")
 def workout_advice_endpoint(request: AdviceRequest) -> Dict[str, str]:
     try:
+        # Log the incoming request
+        print(f"Received workout advice request:")
+        print(f"Question: {request.question}")
+        print(f"Profile Summary: {request.profileSummary}")
+        print(f"User ID: {request.userId}")
+        
+        # Get or generate profile summary
         if request.profileSummary:
             profile_summary = request.profileSummary
+            print(f"Using provided profile summary: {profile_summary}")
         elif request.profile is not None:
             profile_summary = _profile_dict_to_string(request.profile)
+            print(f"Generated profile summary: {profile_summary}")
         else:
             profile_summary = ""
+            print("No profile information provided")
 
         # RAG: Search for relevant context from user's saved notes
         context = ""
         if request.userId:
-            similar_notes = search_similar_notes(
-                search_text=request.question, user_id=request.userId, limit=3
-            )
-            if similar_notes:
-                context_parts = [
-                    f"- {note.get('text', '')}" for note in similar_notes if note.get('text')
-                ]
-                if context_parts:
-                    context = "\n\n**Relevant context from your notes:**\n" + "\n".join(
-                        context_parts
-                    )
+            try:
+                similar_notes = search_similar_notes(
+                    search_text=request.question, user_id=request.userId, limit=3
+                )
+                if similar_notes:
+                    context_parts = [
+                        f"- {note.get('text', '')}" for note in similar_notes if note.get('text')
+                    ]
+                    if context_parts:
+                        context = "\n\n**Relevant context from your notes:**\n" + "\n".join(
+                            context_parts
+                        )
+                        print(f"Found relevant context from notes: {context}")
+            except Exception as note_error:
+                print(f"Error searching notes (non-critical): {str(note_error)}")
+                # Continue without notes context if there's an error
 
         # Add context to the question for enhanced AI advice
         enhanced_question = request.question + context if context else request.question
+        print(f"Enhanced question with context: {enhanced_question}")
 
-        advice_text = get_workout_recommendation(
-            profile=profile_summary,
-            question=enhanced_question,
-        )
-        return {"text": advice_text}
+        # Get the workout recommendation
+        try:
+            advice_text = get_workout_recommendation(
+                profile=profile_summary,
+                question=enhanced_question,
+            )
+            print(f"Successfully generated advice: {advice_text[:100]}...")  # First 100 chars
+            return {"text": advice_text}
+        except Exception as advice_error:
+            print(f"Error getting workout recommendation: {str(advice_error)}")
+            print(f"Profile summary used: {profile_summary}")
+            print(f"Enhanced question used: {enhanced_question}")
+            raise
+            
     except ValueError as exc:
+        print(f"Validation error in workout advice: {str(exc)}")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pylint: disable=broad-except
-        raise HTTPException(status_code=500, detail="Advice generation failed") from exc
+        print(f"Unexpected error in workout advice: {str(exc)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Advice generation failed: {str(exc)}"
+        ) from exc
 
 
 @app.get("/profile/{user_id}")
@@ -232,9 +261,17 @@ def create_note(request: NoteRequest) -> Dict[str, Any]:
     """Create a new note for a user."""
     try:
         note = add_note(request.text, request.userId)
+        if not note:
+            raise ValueError("Note creation returned no data")
         return {"note": note}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pylint: disable=broad-except
-        raise HTTPException(status_code=500, detail=f"Failed to create note: {exc}") from exc
+        # Log the full error for debugging
+        import traceback
+        print(f"Note creation error: {exc}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to create note: {str(exc)}") from exc
 
 
 @app.delete("/notes/{note_id}")
@@ -263,9 +300,6 @@ def search_notes(request: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:  # pylint: disable=broad-except
         raise HTTPException(status_code=500, detail=f"Search failed: {exc}") from exc
 
-
-# Handler for serverless function
-handler = Mangum(app)
 
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
